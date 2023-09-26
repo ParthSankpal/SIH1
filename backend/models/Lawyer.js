@@ -15,28 +15,24 @@ const lawyerSchema = new Schema({
     type: String,
     required: true,
   },
-  // licenseNumber: {
-  //   type: String,
-  //   required: true,
-  // },
-  // practiceName: {
-  //   type: String,
-  //   required: true,
-  // },
-  // accreditationYear: {
-  //   type: String,
-  //   required: true,
-  // },
   phone: {
     type: String,
     required: true,
   },
   services: {
-    type: [String], //  can adjust this based on your implementation
+    type: [String],
   },
   degreeOrCertificateDocument: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'GridFSFile', // Reference to the GridFS file
+    ref: 'GridFSFile',
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false,
+  },
+  phoneVerified: {
+    type: Boolean,
+    default: false,
   },
 });
 

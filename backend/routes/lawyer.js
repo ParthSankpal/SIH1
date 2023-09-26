@@ -2,30 +2,48 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { GridFSBucket } = require('mongoose').mongo;
-// const bcrypt = require('bcrypt'); // Import bcrypt for password hashing
-const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+// const twilio = require('twilio');
 
-const Lawyer = require('../models/Lawyer'); // Import your Lawyer model
+const Lawyer = require('../models/Lawyer');
 
-// Define the storage for multer
-const storage = multer.memoryStorage(); // Use memory storage for files
-
-// Initialize multer with your storage configuration
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Lawyer registration route with multiple steps
+// Configure nodemailer and Twilio
+const emailTransporter = nodemailer.createTransport({
+  service: 'Gmail', // You can use other email services as well
+  auth: {
+    user: 'parth.s4878@gmail.com', 
+    pass: 'tqad vcng gdgy gjbx',
+  },
+});
+
+// const twilioClient = new twilio({
+//   accountSid: 'ACb31b2f573550fa0d66d0a6042e97cc05',
+//   authToken: '03629a569c2205aaea0381f18c10ce5a',
+// });
+
+// Handle lawyer registration and email/phone verification in a single route
 router.post('/register-lawyer', upload.single('degreeOrCertificateDocument'), async (req, res) => {
   try {
-    const { name, email, password, licenseNumber, practiceName, accreditationYear, phone, step } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      password,
+      city,
+      services,
+      level,
+    } = req.body;
 
-    // Validate input data based on the current step
-    if (step === 1 && (!name || !email || !password)) {
-      return res.status(400).json({ message: 'Name, email, and password are required fields' });
-    } else if (step === 2 && (!licenseNumber || !practiceName || !accreditationYear)) {
-      return res.status(400).json({ message: 'License number, practice name, and accreditation year are required fields' });
-    } else if (step === 3 && (!phone)) {
-      return res.status(400).json({ message: 'Phone number is a required field' });
-    }
+    // Generate verification codes
+    const emailVerificationCode = generateVerificationCode();
+    // const phoneVerificationCode = generateVerificationCode();
+
+    // Send email and SMS
+    await sendVerificationEmail(email, emailVerificationCode);
+    // await sendVerificationSMS(phone, phoneVerificationCode);
 
     if (req.bucket) {
       const file = req.file;
@@ -41,23 +59,21 @@ router.post('/register-lawyer', upload.single('degreeOrCertificateDocument'), as
         const newLawyer = new Lawyer({
           name,
           email,
-          password, // Store the hashed password in MongoDB
-          licenseNumber,
-          practiceName,
-          accreditationYear,
           phone,
-          services: [], // You can add services based on your implementation
+          password, // Store the hashed password in MongoDB
+          city,
+          services: services, //.split(',').map((service) => service.trim()),// Split and clean services
+          level,
           degreeOrCertificateDocument: uploadStream.id, // Store the file ID in MongoDB
+          emailVerified: false,
+          phoneVerified: false,
         });
 
         // Save the lawyer document to MongoDB
         await newLawyer.save();
 
-        // Determine the next step or if registration is complete
-        const nextStep = step < 3 ? step + 1 : null;
-
-        res.status(201).json({ message: 'Lawyer registered successfully', nextStep });
-        console.log("Registration Complete");
+        res.status(201).json({ message: 'Lawyer registered successfully' });
+        console.log('Registration Complete');
       });
     } else {
       throw new Error('GridFSBucket not found. Make sure it is set up in your server.js.');
@@ -74,7 +90,40 @@ router.post('/register-lawyer', upload.single('degreeOrCertificateDocument'), as
   }
 });
 
+// Generate a random 6-digit verification code
+const generateVerificationCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
+//  verification email
+const sendVerificationEmail = async (email, code) => {
+  try {
+    await emailTransporter.sendMail({
+      from: 'parth.sankpal@somaiya.edu',
+      to: email,
+      subject: 'Email Verification Code e-वकालत',
+      text: `Your email verification code is for e-वकालत : ${code}`,
+    });
+    
+  } catch (error) {
+    console.error('Email sending error:', error);
+    throw error;
+  }
+};
+
+// verification SMS
+const sendVerificationSMS = async (phone, code) => {
+  try {
+    await twilioClient.messages.create({
+      body: `Your phone verification code is: ${code}`,
+      from: '7020525430',
+      to: phone,
+    });
+  } catch (error) {
+    console.error('SMS sending error:', error);
+    throw error;
+  }
+};
 
 
 
