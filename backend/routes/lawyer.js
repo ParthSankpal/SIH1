@@ -1,30 +1,80 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { GridFSBucket } = require('mongoose').mongo;
 const nodemailer = require('nodemailer');
-// const twilio = require('twilio');
 
 const Lawyer = require('../models/Lawyer');
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Configure nodemailer and Twilio
+// Configure nodemailer
 const emailTransporter = nodemailer.createTransport({
   service: 'Gmail', // You can use other email services as well
   auth: {
-    user: 'parth.s4878@gmail.com', 
+    user: 'parth.s4878@gmail.com',
     pass: 'tqad vcng gdgy gjbx',
   },
 });
 
-// const twilioClient = new twilio({
-//   accountSid: 'ACb31b2f573550fa0d66d0a6042e97cc05',
-//   authToken: '03629a569c2205aaea0381f18c10ce5a',
-// });
+// Generate a random 6-digit verification code
+let emailVerificationCode; 
+const generateVerificationCode = () => {
+  emailVerificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+  return emailVerificationCode;
+};
 
-// Handle lawyer registration and email/phone verification in a single route
+// Send verification email
+const sendVerificationEmail = async (email) => {
+  try {
+    // Generate the verification code and store it in the variable
+    generateVerificationCode();
+
+    await emailTransporter.sendMail({
+      from: 'parth.sankpal@somaiya.edu',
+      to: email,
+      subject: 'Email Verification Code e-वकालत',
+      text: `Your email verification code is for e-वकालत : ${emailVerificationCode}`,
+    });
+  } catch (error) {
+    console.error('Email sending error:', error);
+    throw error;
+  }
+};
+
+
+router.post('/send-verification-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Send verification email
+    await sendVerificationEmail(email);
+
+    res.status(200).json({ message: 'Email verification code sent successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.post('/verify', async (req, res) => {
+  try {
+    const { email, emailCode } = req.body;
+
+    if (emailVerificationCode === emailCode) {
+      // Send a success response if verification is successful
+      return res.status(200).json({ message: 'Verification successful', verified: true });
+    } else {
+      // Handle the case where the provided codes do not match
+      return res.status(400).json({ message: 'Verification codes do not match' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
 router.post('/register-lawyer', upload.single('degreeOrCertificateDocument'), async (req, res) => {
   try {
     const {
@@ -36,14 +86,6 @@ router.post('/register-lawyer', upload.single('degreeOrCertificateDocument'), as
       services,
       level,
     } = req.body;
-
-    // Generate verification codes
-    const emailVerificationCode = generateVerificationCode();
-    // const phoneVerificationCode = generateVerificationCode();
-
-    // Send email and SMS
-    await sendVerificationEmail(email, emailVerificationCode);
-    // await sendVerificationSMS(phone, phoneVerificationCode);
 
     if (req.bucket) {
       const file = req.file;
@@ -62,11 +104,11 @@ router.post('/register-lawyer', upload.single('degreeOrCertificateDocument'), as
           phone,
           password, // Store the hashed password in MongoDB
           city,
-          services: services, //.split(',').map((service) => service.trim()),// Split and clean services
+          services: services.split(',').map((service) => service.trim()), // Split and clean services
           level,
           degreeOrCertificateDocument: uploadStream.id, // Store the file ID in MongoDB
-          emailVerified: false,
-          phoneVerified: false,
+          emailVerified: true,
+          phoneVerified: true,
         });
 
         // Save the lawyer document to MongoDB
@@ -90,40 +132,6 @@ router.post('/register-lawyer', upload.single('degreeOrCertificateDocument'), as
   }
 });
 
-// Generate a random 6-digit verification code
-const generateVerificationCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-//  verification email
-const sendVerificationEmail = async (email, code) => {
-  try {
-    await emailTransporter.sendMail({
-      from: 'parth.sankpal@somaiya.edu',
-      to: email,
-      subject: 'Email Verification Code e-वकालत',
-      text: `Your email verification code is for e-वकालत : ${code}`,
-    });
-    
-  } catch (error) {
-    console.error('Email sending error:', error);
-    throw error;
-  }
-};
-
-// verification SMS
-const sendVerificationSMS = async (phone, code) => {
-  try {
-    await twilioClient.messages.create({
-      body: `Your phone verification code is: ${code}`,
-      from: '7020525430',
-      to: phone,
-    });
-  } catch (error) {
-    console.error('SMS sending error:', error);
-    throw error;
-  }
-};
 
 
 
